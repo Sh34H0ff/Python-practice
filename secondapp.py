@@ -1,146 +1,170 @@
-from plotly.data import gapminder
-from dash import dcc, html, Dash, callback, Input, Output
+import dash
+from dash import dcc, html, Input, Output, dash_table
 import plotly.express as px
-import plotly.graph_objects as go
+import pandas as pd
 
-css = ["https://cdn.jsdelivr.net/npm/bootstrap@5.3.1/dist/css/bootstrap.min.css"]
-app = Dash(name="Gapminder Dashboard", external_stylesheets=css)
+# Load dataset
+df = px.data.gapminder()
 
-################### DATASET ####################################
-gapminder_df = gapminder(datetimes=True, centroids=True, pretty_names=True)
-gapminder_df["Year"] = gapminder_df.Year.dt.year
+# Initialize app
+app = dash.Dash(__name__)
 
-#################### CHARTS ####################################
-def create_table():
-    fig = go.Figure(data=[go.Table(
-        header=dict(values=gapminder_df.columns, align='left'),
-        cells=dict(values=gapminder_df.values.T, align='left'))
-    ])
-    fig.update_layout(paper_bgcolor="#e5ecf6", margin={"t":0, "l":0, "r":0, "b":0}, height=700)
-    return fig
-
-# ---- POPULATION PIE CHART ----
-def create_population_chart(continent="Asia", year=1952):
-    filtered_df = gapminder_df[(gapminder_df.Continent == continent) & (gapminder_df.Year == year)]
-    filtered_df = filtered_df.sort_values(by="Population", ascending=False).head(15)
-
-    fig = px.pie(
-        filtered_df,
-        names="Country",
-        values="Population",
-        title=f"Population Distribution in {continent} ({year})",
-        hole=0.4,
-        template="plotly_white"
+# --- Chart Functions ---
+def create_population_chart(continent, year):
+    dff = df[(df['continent'] == continent) & (df['year'] == year)]
+    fig = px.bar(
+        dff,
+        x='country',
+        y='pop',
+        title=f"Population in {continent} ({year})",
+        color='country',
+        color_discrete_sequence=px.colors.qualitative.Prism
     )
-    fig.update_layout(paper_bgcolor="#e5ecf6", height=600)
+    fig.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='#0A0F24',
+        plot_bgcolor='#0A0F24',
+        font=dict(color='#00FFFF', family='Orbitron, sans-serif')
+    )
     return fig
 
-# ---- GDP SCATTER CHART ----
-def create_gdp_chart(continent="Asia", year=1952):
-    filtered_df = gapminder_df[(gapminder_df.Continent == continent) & (gapminder_df.Year == year)]
 
+def create_gdp_chart(continent, year):
+    dff = df[(df['continent'] == continent) & (df['year'] == year)]
     fig = px.scatter(
-        filtered_df,
-        x="GDP per Capita",
-        y="Life Expectancy",
-        size="Population",
-        color="Country",
-        hover_name="Country",
-        title=f"GDP per Capita vs Life Expectancy ({continent}, {year})",
-        template="plotly_white"
+        dff,
+        x='gdpPercap',
+        y='lifeExp',
+        size='pop',
+        color='country',
+        title=f"GDP vs Life Expectancy ({continent}, {year})",
+        color_discrete_sequence=px.colors.qualitative.Vivid,
+        size_max=60
     )
-    fig.update_layout(paper_bgcolor="#e5ecf6", height=600)
+    fig.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='#0A0F24',
+        plot_bgcolor='#0A0F24',
+        font=dict(color='#00FFFF', family='Orbitron, sans-serif')
+    )
     return fig
 
-# ---- LIFE EXPECTANCY LINE CHART ----
-def create_life_exp_chart(continent="Asia", year=1952):
-    filtered_df = gapminder_df[gapminder_df.Continent == continent]
 
+def create_lifeexp_chart(continent, year):
+    dff = df[(df['continent'] == continent) & (df['year'] == year)]
     fig = px.line(
-        filtered_df,
-        x="Year",
-        y="Life Expectancy",
-        color="Country",
-        title=f"Life Expectancy Trend for {continent}",
-        template="plotly_white"
+        dff,
+        x='country',
+        y='lifeExp',
+        title=f"Life Expectancy in {continent} ({year})",
+        color='country',
+        color_discrete_sequence=px.colors.qualitative.Bold
     )
-    fig.update_layout(paper_bgcolor="#e5ecf6", height=600)
+    fig.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='#0A0F24',
+        plot_bgcolor='#0A0F24',
+        font=dict(color='#00FFFF', family='Orbitron, sans-serif')
+    )
     return fig
 
-# ---- CHOROPLETH MAP ----
-def create_choropleth_map(variable, year):
-    filtered_df = gapminder_df[gapminder_df.Year == year]
 
-    fig = px.choropleth(
-        filtered_df,
-        color=variable,
-        locations="ISO Alpha Country Code",
-        locationmode="ISO-3",
-        color_continuous_scale="RdYlBu",
-        hover_data=["Country", variable],
-        title=f"{variable} Choropleth Map [{year}]",
-        template="plotly_white"
+def create_world_map(year):
+    dff = df[df['year'] == year]
+    fig = px.scatter_geo(
+        dff,
+        locations="iso_alpha",
+        color="lifeExp",
+        hover_name="country",
+        size="pop",
+        projection="natural earth",
+        title=f"🌍 World Map of Population & Life Expectancy ({year})",
+        color_continuous_scale="Tealgrn"
     )
-    fig.update_layout(dragmode=False, paper_bgcolor="#e5ecf6", height=600, margin={"l":0, "r":0})
+    fig.update_layout(
+        template='plotly_dark',
+        paper_bgcolor='#0A0F24',
+        font=dict(color='#00FFFF', family='Orbitron, sans-serif')
+    )
     return fig
 
-##################### WIDGETS ####################################
-continents = gapminder_df.Continent.unique()
-years = gapminder_df.Year.unique()
 
-cont_population = dcc.Dropdown(id="cont_pop", options=continents, value="Asia", clearable=False)
-year_population = dcc.Dropdown(id="year_pop", options=years, value=1952, clearable=False)
-
-cont_gdp = dcc.Dropdown(id="cont_gdp", options=continents, value="Asia", clearable=False)
-year_gdp = dcc.Dropdown(id="year_gdp", options=years, value=1952, clearable=False)
-
-cont_life_exp = dcc.Dropdown(id="cont_life_exp", options=continents, value="Asia", clearable=False)
-year_life_exp = dcc.Dropdown(id="year_life_exp", options=years, value=1952, clearable=False)
-
-year_map = dcc.Dropdown(id="year_map", options=years, value=1952, clearable=False)
-var_map = dcc.Dropdown(
-    id="var_map",
-    options=["Population", "GDP per Capita", "Life Expectancy"],
-    value="Life Expectancy",
-    clearable=False
-)
-
-##################### APP LAYOUT ####################################
+# --- Layout ---
 app.layout = html.Div([
+    html.H1(
+        "🌌 Futuristic Global Insights Dashboard 🌍",
+        style={'textAlign': 'center', 'color': '#00FFFF', 'fontFamily': 'Orbitron, sans-serif'}
+    ),
+
     html.Div([
-        html.H1("Gapminder Dataset Analysis", className="text-center fw-bold m-2"),
-        html.Br(),
-        dcc.Tabs([
-            dcc.Tab([html.Br(),
-                     dcc.Graph(id="dataset", figure=create_table())], label="Dataset"),
-            dcc.Tab([html.Br(), "Continent", cont_population, "Year", year_population, html.Br(),
-                     dcc.Graph(id="population")], label="Population"),
-            dcc.Tab([html.Br(), "Continent", cont_gdp, "Year", year_gdp, html.Br(),
-                     dcc.Graph(id="gdp")], label="GDP Per Capita"),
-            dcc.Tab([html.Br(), "Continent", cont_life_exp, "Year", year_life_exp, html.Br(),
-                     dcc.Graph(id="life_expectancy")], label="Life Expectancy"),
-            dcc.Tab([html.Br(), "Variable", var_map, "Year", year_map, html.Br(),
-                     dcc.Graph(id="choropleth_map")], label="Choropleth Map"),
-        ])
-    ], className="col-8 mx-auto"),
-], style={"background-color": "#e5ecf6", "height": "100vh"})
+        html.Label("Select Continent:", style={'color': '#00FFFF'}),
+        dcc.Dropdown(
+            id='continent-dropdown',
+            options=[{'label': c, 'value': c} for c in df['continent'].unique()],
+            value='Asia',
+            clearable=False,
+            style={'backgroundColor': '#111', 'color': '#00FFFF'}
+        ),
+    ], style={'width': '50%', 'margin': 'auto', 'padding': '10px'}),
 
-##################### CALLBACKS ####################################
-@callback(Output("population", "figure"), [Input("cont_pop", "value"), Input("year_pop", "value")])
-def update_population_chart(continent, year):
-    return create_population_chart(continent, year)
+    html.Div([
+        html.Label("Select Year:", style={'color': '#00FFFF'}),
+        dcc.Slider(
+            id='year-slider',
+            min=df['year'].min(),
+            max=df['year'].max(),
+            step=5,
+            value=df['year'].max(),
+            marks={str(year): str(year) for year in df['year'].unique()},
+        ),
+    ], style={'width': '80%', 'margin': 'auto', 'padding': '20px'}),
 
-@callback(Output("gdp", "figure"), [Input("cont_gdp", "value"), Input("year_gdp", "value")])
-def update_gdp_chart(continent, year):
-    return create_gdp_chart(continent, year)
+    # Tabs for navigation
+    dcc.Tabs(id='tabs', value='tab-data', children=[
+        dcc.Tab(label='📊 Data Table', value='tab-data', style={'backgroundColor': '#0A0F24', 'color': '#00FFFF'}),
+        dcc.Tab(label='👥 Population', value='tab-population', style={'backgroundColor': '#0A0F24', 'color': '#00FFFF'}),
+        dcc.Tab(label='💰 GDP', value='tab-gdp', style={'backgroundColor': '#0A0F24', 'color': '#00FFFF'}),
+        dcc.Tab(label='❤️ Life Expectancy', value='tab-lifeexp', style={'backgroundColor': '#0A0F24', 'color': '#00FFFF'}),
+        dcc.Tab(label='🌍 World Map', value='tab-map', style={'backgroundColor': '#0A0F24', 'color': '#00FFFF'}),
+    ], style={'fontFamily': 'Orbitron, sans-serif', 'borderBottom': '2px solid #00FFFF'}),
 
-@callback(Output("life_expectancy", "figure"), [Input("cont_life_exp", "value"), Input("year_life_exp", "value")])
-def update_life_exp_chart(continent, year):
-    return create_life_exp_chart(continent, year)
+    html.Div(id='tabs-content', style={'padding': '20px'})
+], style={'backgroundColor': '#02040F', 'minHeight': '100vh', 'padding': '30px'})
 
-@callback(Output("choropleth_map", "figure"), [Input("var_map", "value"), Input("year_map", "value")])
-def update_map(var_map, year):
-    return create_choropleth_map(var_map, year)
 
+# --- Callback for Tabs ---
+@app.callback(
+    Output('tabs-content', 'children'),
+    Input('tabs', 'value'),
+    Input('continent-dropdown', 'value'),
+    Input('year-slider', 'value')
+)
+def update_tab_content(tab, continent, year):
+    dff = df[(df['continent'] == continent) & (df['year'] == year)]
+
+    if tab == 'tab-data':
+        return dash_table.DataTable(
+            data=dff.to_dict('records'),
+            columns=[{'name': col, 'id': col} for col in dff.columns],
+            style_table={'overflowX': 'auto', 'backgroundColor': '#0A0F24'},
+            style_header={'backgroundColor': '#00FFFF', 'color': '#0A0F24', 'fontWeight': 'bold'},
+            style_cell={'backgroundColor': '#0A0F24', 'color': '#00FFFF', 'fontFamily': 'Orbitron, sans-serif'},
+            page_size=10
+        )
+
+    elif tab == 'tab-population':
+        return dcc.Graph(figure=create_population_chart(continent, year))
+
+    elif tab == 'tab-gdp':
+        return dcc.Graph(figure=create_gdp_chart(continent, year))
+
+    elif tab == 'tab-lifeexp':
+        return dcc.Graph(figure=create_lifeexp_chart(continent, year))
+
+    elif tab == 'tab-map':
+        return dcc.Graph(figure=create_world_map(year))
+
+# --- Run App ---
 if __name__ == "__main__":
-    app.run(debug=True, threaded=False)
+    app.run(debug=True)
+
